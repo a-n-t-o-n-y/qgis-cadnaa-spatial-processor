@@ -20,6 +20,7 @@ from qgis.core import (QgsProcessingAlgorithm,
                        )
 import processing
 
+
 class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
     """
     This is an algorithm that takes dtm, dsm and vector layers and creates cadnaa spatial inputs.
@@ -64,7 +65,8 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
         """
         Returns a localised short help string for the algorithm.
         """
-        return self.tr('Takes in LIDAR DSM and DTM data plus 2D vector buildings, roads and rail from VectorMap geodatabase, creates inputs ready for CadnaA')
+        return self.tr(
+            'Takes in LIDAR DSM and DTM data plus 2D vector buildings, roads and rail from VectorMap geodatabase, creates inputs ready for CadnaA')
 
     def initAlgorithm(self, config=None):
         """
@@ -92,7 +94,35 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
                 'GDB',
                 self.tr('Input VectorMap Geodatabase File'),
                 extension="gdb",
-                behavior=1
+                behavior=1,
+                optional=True
+            )
+        )
+        # buildings .shp file
+        self.addParameter(
+            QgsProcessingParameterFile(
+                'BLD',
+                self.tr('Input buildings .shp file'),
+                extension="shp",
+                optional=True
+            )
+        )
+        # roads .shp file
+        self.addParameter(
+            QgsProcessingParameterFile(
+                'RDS',
+                self.tr('Input roads .shp file'),
+                extension="shp",
+                optional=True
+            )
+        )
+        # rail .shp file
+        self.addParameter(
+            QgsProcessingParameterFile(
+                'RLS',
+                self.tr('Input rail .shp file'),
+                extension="shp",
+                optional=True
             )
         )
         # Size of contours 1m, 2m etc.
@@ -103,7 +133,7 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
                 type=QgsProcessingParameterNumber.Integer,
                 minValue=0.5
             )
-        )     
+        )
         # Output folder
         self.addParameter(
             QgsProcessingParameterFolderDestination(
@@ -181,7 +211,8 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
         Export the selected vector layer as a shapefile with the specified output name.
         """
         output_file_path = os.path.join(self.output_path, output_name)
-        QgsVectorFileWriter.writeAsVectorFormat(vector_layer, output_file_path, "UTF-8", vector_layer.crs(), "ESRI Shapefile")
+        QgsVectorFileWriter.writeAsVectorFormat(vector_layer, output_file_path, "UTF-8", vector_layer.crs(),
+                                                "ESRI Shapefile")
         return output_file_path
 
     def assign_building_heights_to_shp(self, buildings_path, height_raster):
@@ -192,7 +223,8 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
         buildings = QgsVectorLayer(buildings_path, "buildings", "ogr")
 
         # run zonal stats and assign mean, max and min values
-        zonal_stats = QgsZonalStatistics(buildings, height_raster, "", 1, (QgsZonalStatistics.Min|QgsZonalStatistics.Max|QgsZonalStatistics.Mean))
+        zonal_stats = QgsZonalStatistics(buildings, height_raster, "", 1,
+                                         (QgsZonalStatistics.Min | QgsZonalStatistics.Max | QgsZonalStatistics.Mean))
         zonal_stats.calculateStatistics(None)
 
         # create new columns for cadnaa
@@ -203,7 +235,7 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
         buildings.updateFields()
 
         # assign mean value to HA column
-        expression = QgsExpression("mean")
+        expression = QgsExpression("max")
 
         # Create an expression context
         context = QgsExpressionContext()
@@ -224,7 +256,7 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
         buildings.commitChanges()
         QgsProject.instance().addMapLayer(buildings)
 
-    def generate_buildings(self, building_layer, building_column, building_feature):
+    def generate_buildings_vml(self, building_layer, building_column, building_feature):
         """
         Generate building features and assign heights to a shapefile.
         """
@@ -234,15 +266,22 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
         buildings_path = self.export_selected_as_shp(selected_buildings, "buildings.shp")
         self.assign_building_heights_to_shp(buildings_path, height_raster)
 
+    def generate_buildings_shp(self):
+        """
+        Generate building features and assign heights to a shapefile.
+        """
+        buildings_vector = QgsVectorLayer(self.bld_path, "buildings", "ogr")
+        buildings_path = self.export_selected_as_shp(buildings_vector, "buildings.shp")
+        height_raster = self.generate_height_difference_raster()
+        self.assign_building_heights_to_shp(buildings_path, height_raster)
+
     def add_field_to_vector(self, vector_layer, field_name, new_value, data_type):
 
         # add field
         vector_layer.dataProvider().addAttributes([QgsField(field_name, data_type)])
         vector_layer.updateFields()
-        print(vector_layer.fields().names())
 
         # edit field
-
         with edit(vector_layer):
             for feature in vector_layer.getFeatures():
                 feature[field_name] = new_value
@@ -250,12 +289,16 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
 
         vector_layer.commitChanges()
 
-
-    def export_layer_for_cadnaa(self, layer_name, output_name, field_name, new_value, data_type):
+    def export_layer_for_cadnaa_from_gdb(self, layer_name, output_name, field_name, new_value, data_type):
         selected_layer = self.select_layer_in_gdb(layer_name)
         exported_layer_path = self.export_selected_as_shp(selected_layer, f'{output_name}.shp')
         new_vector_layer = QgsVectorLayer(exported_layer_path, output_name, "ogr")
-        QgsProject.instance().addMapLayer(new_vector_layer)
+        self.add_field_to_vector(new_vector_layer, field_name, new_value, data_type)
+
+    def export_shp_for_cadnaa(self, shp_path, output_name, field_name, new_value, data_type):
+        vector = QgsVectorLayer(shp_path, output_name, "ogr")
+        exported_layer_path = self.export_selected_as_shp(vector, f'{output_name}.shp')
+        new_vector_layer = QgsVectorLayer(exported_layer_path, output_name, "ogr")
         self.add_field_to_vector(new_vector_layer, field_name, new_value, data_type)
         QgsProject.instance().addMapLayer(new_vector_layer)
 
@@ -263,10 +306,24 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
         """
         Process the data by executing various subtasks.
         """
+        if self.gdb_path == "" and self.bld_path == "":
+            return print("There must be a building shapefile or VectorMap geodatabase")
+
         self.contour_raster_to_shp()
-        self.generate_buildings("Area", "featureDescription", "Building Polygon")
-        self.export_layer_for_cadnaa("RailCLine", "rail", "HA_ATT", "r", QVariant.String)
-        self.export_layer_for_cadnaa("RoadCLine", "roads", "HA_ATT", "r", QVariant.String)
+        if self.gdb_path != "":
+            self.generate_buildings_vml("Area", "featureDescription", "Building Polygon")
+            self.export_layer_for_cadnaa_from_gdb("RailCLine", "rail", "HA_ATT", "r", QVariant.String)
+            self.export_layer_for_cadnaa_from_gdb("RoadCLine", "roads", "HA_ATT", "r", QVariant.String)
+        else:
+            self.generate_buildings_shp()
+            if self.rds_path != "":
+                self.export_shp_for_cadnaa(self.rds_path, "roads", "HA_ATT", "r", QVariant.String)
+            else:
+                print("no roads added")
+            if self.rls_path != "":
+                self.export_shp_for_cadnaa(self.rls_path, "rail", "HA_ATT", "r", QVariant.String)
+            else:
+                print("no rails added")
 
     def processAlgorithm(self, parameters, context, feedback):
         """
@@ -274,8 +331,12 @@ class CadnaaProcessingAlgorithm(QgsProcessingAlgorithm):
         """
         self.output_path = self.parameterAsString(parameters, 'OUTPUT', context)
         self.gdb_path = self.parameterAsString(parameters, 'GDB', context)
+        self.bld_path = self.parameterAsString(parameters, 'BLD', context)
+        self.rds_path = self.parameterAsString(parameters, 'RDS', context)
+        self.rls_path = self.parameterAsString(parameters, 'RLS', context)
         self.dtm_path = self.parameterAsString(parameters, 'DTM', context)
         self.dsm_path = self.parameterAsString(parameters, 'DSM', context)
-        self.interval =self.parameterAsInt(parameters, 'INTERVAL', context)
+        self.interval = self.parameterAsInt(parameters, 'INTERVAL', context)
         self.process_data()
+
         return {}
