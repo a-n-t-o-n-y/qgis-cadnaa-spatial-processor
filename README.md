@@ -1,4 +1,4 @@
-# Excel tables to word 
+# QGIS to CadnaA Spatial Processor Tool
 
 ### Table of Contents
 1. Description
@@ -7,9 +7,12 @@
 4. Credits
 
 ## Description
-QGIS python script script for generating CadnaA 3D modelling inputs from free UK government LIDAR data and OS VectorMap Data.
+QGIS python script script for generating CadnaA 3D modelling inputs using free UK government LIDAR data for DTM/DSM and OS VectorMap Local geodatabse or seperate shapefiles for roads, rail and buildings.
 
-VectorMap Data: https://www.ordnancesurvey.co.uk/products/os-vectormap-local#get
+Exports shapefiles ready for CadnaA input (contours, road, rail and buildings) and assigns a height value to 2D building shapefile.
+
+Individual shapefiles: https://osdatahub.os.uk/downloads/open/VectorMapDistrict
+VectorMap Local Data: https://www.ordnancesurvey.co.uk/products/os-vectormap-local#get
 National LIDAR Programme Data: https://www.data.gov.uk/dataset/f0db0249-f17b-4036-9e65-309148c97ce4/national-lidar-programme
 Requirements: QGIS with GRASS
 
@@ -25,7 +28,12 @@ To install this program
 Input requirements:
 - DTM raster layer (.TIF)
 - DSM raster layer (.TIF)
-- VectorMap Geodatabase file (.gdb)
+- VectorMap Geodatabase (.gdb) [optional]*
+- buildings (.shp) [optional]*
+- roads (.shp) [optional]
+- rail (.shp) [optional]
+
+*inputs must include a buildings layer (either from VectorMap Geodatabase or as a standalone shapefile)
 
 Running the script:
 - once the .py file has been added to the processing toolbox, open the 'Create CadnaA Inputs' tool
