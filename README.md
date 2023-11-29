@@ -13,6 +13,8 @@ VectorMap Data: https://www.ordnancesurvey.co.uk/products/os-vectormap-local#get
 National LIDAR Programme Data: https://www.data.gov.uk/dataset/f0db0249-f17b-4036-9e65-309148c97ce4/national-lidar-programme
 Requirements: QGIS with GRASS
 
+Assumes all data has the same co-ordinate system.
+
 ## Installation
 To install this program
 - install python 3 
